@@ -73,7 +73,8 @@ def parse_maria_page(page_source,last_timestamp):
         matchi = re.search('<p class="smstxt">(?P<mensagem>.*)</p>', iteminfo, re.UNICODE)
         if matchi is None:
             continue
-        item['msg'] = matchi.group("mensagem")
+        msg = matchi.group("mensagem")
+        item['msg'] = msg.decode('utf-8')
         matchi = re.search('<div class="tm"><img class="icon" src="img/maria/tm.png" width="16" height="16"> Tm.: (?P<num>.*?)</div>', iteminfo)
         item['num'] = matchi.group("num")
         matchi = re.search('<div class="data"><img class="icon" src="img/maria/calend.png" width="16" height="16"> (?P<data>.*?)</div>', iteminfo)
