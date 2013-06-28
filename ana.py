@@ -1,23 +1,24 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import urllib2, urllib, re, sys, sqlite3, datetime, hashlib
+import urllib2, urllib, re, sys, sqlite3, datetime, hashlib, time
+import mylib
 
 class MyException(Exception): pass
 
-url = "http://amor.revistaana.pt/hp_ana.aspx"
-conn = sqlite3.connect('ana.db')
+conn = sqlite3.connect('mariana.db')
 conn.row_factory = sqlite3.Row
 """
-CREATE TABLE ana (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  data TEXT,
-  numero TEXT,
-  mensagem TEXT
+CREATE TABLE sms ( 
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    data     TEXT,
+    numero   TEXT,
+    mensagem TEXT,
+    origem   CHAR 
 );
 """
 
-def get_gay_vars(page_source):
+def get_aspx_vars(page_source):
     result = {}
     match = re.search('id="__EVENTVALIDATION" value="(.*)" />', page_source, re.MULTILINE)
     result['__EVENTVALIDATION'] = match.group(1)
@@ -25,12 +26,12 @@ def get_gay_vars(page_source):
     result['__VIEWSTATE'] = match.group(1)
     return result
 
-def get_page(number=0, postvars={}):
-    if number > 0:
-        postvars['currentPage'] = number
-        postvars['mheader1$txtSearch'] = ''
-        postvars['mheader1$sdate'] = 'ultimodia'
-        postvars['hdnsdate'] = 'ultimodia'
+def get_page(url, page=0, postvars={}):
+    if page > 0:
+        postvars['currentPage']         = page
+        postvars['mheader1$txtSearch']  = ''
+        postvars['mheader1$sdate']      = 'ultimodia'
+        postvars['hdnsdate']            = 'ultimodia'
     data = urllib.urlencode(postvars)
     user_agent = 'Benfica/Glorioso (Ultrix-11) ZBR'
     headers = { 'User-Agent' : user_agent }
@@ -39,7 +40,7 @@ def get_page(number=0, postvars={}):
     page_source = response.read()
     return page_source
 
-def parse_page(page_source,lastts):
+def parse_ana_page(page_source,last_timestamp):
     result = []
     for match in re.finditer('(?sm)<div class="sms">(?P<all>(.|\n|\r\n)*?)<div class="cB">', page_source, re.UNICODE):
         item = {}
@@ -55,83 +56,123 @@ def parse_page(page_source,lastts):
         item['data'] = matchi.group("data")
         matchi = re.search('<div class="hora rosac"><img src="img/ana/relog.png" width="16" height="16"> (?P<hora>.*?)</div>', iteminfo)
         item['hora'] = matchi.group("hora")
-        item['ts'] = datetime.datetime.strptime(item['data'] + ' ' + item['hora'], "%d.%m.%Y %Hh %Mm").strftime("%s")
-        if int(item['ts']) < int(lastts):
+        ts = datetime.datetime.strptime(item['data'] + ' ' + item['hora'], "%d.%m.%Y %Hh %Mm")
+        item['ts'] = str(time.mktime(ts.timetuple()))[:-2]
+        if int(item['ts']) < int(last_timestamp):
             continue
         result.append(item)
     if len(result) == 0:
         raise MyException("benfica")
     return result
 
+def parse_maria_page(page_source,last_timestamp):
+    result = []
+    for match in re.finditer('(?sm)<div class="smstop"></div>(?P<all>(.|\n|\r\n)*?)<div class="smsbot">', page_source, re.UNICODE):
+        item = {}
+        iteminfo = match.group("all")
+        matchi = re.search('<p class="smstxt">(?P<mensagem>.*)</p>', iteminfo, re.UNICODE)
+        if matchi is None:
+            continue
+        item['msg'] = matchi.group("mensagem")
+        matchi = re.search('<div class="tm"><img class="icon" src="img/maria/tm.png" width="16" height="16"> Tm.: (?P<num>.*?)</div>', iteminfo)
+        item['num'] = matchi.group("num")
+        matchi = re.search('<div class="data"><img class="icon" src="img/maria/calend.png" width="16" height="16"> (?P<data>.*?)</div>', iteminfo)
+        item['data'] = matchi.group("data")
+        matchi = re.search('<div class="hora"><img class="icon" src="img/maria/relog.png" width="16" height="16"> (?P<hora>.*?)</div>', iteminfo)
+        item['hora'] = matchi.group("hora")
+        ts = datetime.datetime.strptime(item['data'] + ' ' + item['hora'], "%d.%m.%Y %Hh %Mm")
+        item['ts'] = str(time.mktime(ts.timetuple()))[:-2]
+        if int(item['ts']) < int(last_timestamp):
+            continue        
+        result.append(item)
+    if len(result) == 0:
+        raise MyException("benfica")        
+    return result
+
 def get_total_pages(page_source):
     match = re.search(r'<a href="javascript:GoToPage\((\d+)\)" class="">', page_source)
     return int(match.group(1))
 
-def add_records(items):
+def add_records(items,origem):
     for item in items:
-        conn.execute('insert into ana (data, numero, mensagem) values(?, ?, ?)', (item['ts'], item['num'], item['msg']) )
+        conn.execute('insert into sms (data, numero, mensagem, origem) values(?, ?, ?, ?)', [item['ts'], item['num'], item['msg'], origem] )
         conn.commit()
 
 def get_random():
-    c = conn.execute('select id, data, numero, mensagem from ana ORDER BY RANDOM() LIMIT 1;')
+    c = conn.execute('select id, data, numero, mensagem, origem from sms ORDER BY RANDOM() LIMIT 1;')
     rows = c.fetchall()[0]
-    msg = "%s - %s, %s" % (rows[3], rows[2], rows[1])
+    msg = "%s - %s, %s [%s]" % (rows[3], rows[2], rows[1], rows[4])
     return msg
 
 def find_record(find, position = 0):
-    sql = 'select count(1) from ana where mensagem like ?'
+    sql = 'select count(1) from sms where mensagem like ?'
     args = ['%'+find+'%']
     c = conn.execute(sql, args)
     total = c.fetchone()[0]
     if total == 0 or int(position) > int(total-1):
-        print "Not found"
+        mylib.print_console("Not found")
         sys.exit()
     if total > 1 and position == 0:
-        print "%d found '.fm %s %d' for the next one" % (total, find, position + 1)
+        mylib.print_console("%d found '.fm %s %d' for the next one" % (total, find, position + 1))
 
-    sql = 'select id, data, numero, mensagem from ana WHERE mensagem like ? ORDER BY data LIMIT ?,1'
+    sql = 'select id, data, numero, mensagem, origem from sms WHERE mensagem like ? ORDER BY data LIMIT ?,1'
     args = ['%'+find+'%', position]
     c = conn.execute(sql, args)
     rows = c.fetchall()[0]
-    msg = "%s - %s, %s" % (rows[3], rows[2], rows[1])
+    msg = "%s - %s, %s [%s]" % (rows[3], rows[2], rows[1], rows[4])
     return msg
 
-def get_latest_record_ts():
-    sql = 'select max(data) from ana'
-    c = conn.execute(sql)
+def get_latest_record_ts(origem):
+    sql = 'select max(data) from sms where origem = ?'
+    c = conn.execute(sql,[origem])
     zbr = c.fetchone()
     if zbr[0] is None:
         return 0
     else:
-        print zbr
+        mylib.print_console(zbr)
         data = zbr[0]
         return int(data)
 
-def update_records():
-    lastts = get_latest_record_ts()
+def update_records(revista):
+    
+    if revista == "a":
+        url = "http://amor.revistaana.pt/hp_ana.aspx"
+        print "updating ana"
+    if revista == "m":
+        url = "http://mensagens.maria.pt/hp_maria.aspx"
+        print "updating maria"
+    
+    lastts = get_latest_record_ts(revista)
 
-    page = get_page()
+    page = get_page(url)
     total = get_total_pages(page) + 1
-    postcrap = get_gay_vars(page)
+    postcrap = get_aspx_vars(page)
 
     try:
-        add_records(parse_page(page,lastts))
+        if revista == "a":
+            items = parse_ana_page(page,lastts)
+        elif revista == "m":
+            items = parse_maria_page(page,lastts)
+        add_records(items,revista)
     except MyException:
         return
 
     for i in range(1,total):
-        print "parsing page %d" % i
-        page = get_page(i, postcrap)
-        postcrap = get_gay_vars(page)
+        mylib.print_console("parsing page %d" % i)
+        page = get_page(url, i, postcrap)
+        postcrap = get_aspx_vars(page)
         try:
-            items = parse_page(page,lastts)
-            print items
+            if revista == "a":
+                items = parse_ana_page(page,lastts)
+            elif revista == "m":
+                items = parse_maria_page(page,lastts)
+            mylib.print_console(items)
         except MyException:
             return
-        add_records(items)
+        add_records(items,revista)
 
-def loljews(s):
-    sql = 'select count(1) from ana'
+def get_magic_random(s):
+    sql = 'select count(1) from sms'
     c = conn.execute(sql)
     total = c.fetchone()[0]
 
@@ -139,7 +180,7 @@ def loljews(s):
     n = int(h, 16)
     myid = n % total
 
-    c = conn.execute('select id, data, numero, mensagem from ana where id = ?;', [myid])
+    c = conn.execute('select id, data, numero, mensagem from sms where id = ?;', [myid])
     rows = c.fetchall()[0]
     msg = "%s - %s, %s" % (rows[3], rows[2], rows[1])
     return msg
@@ -147,14 +188,15 @@ def loljews(s):
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
-        print get_random()
+        mylib.print_console(get_random())
     if len(sys.argv) > 1:
         if sys.argv[1] == 'cron':
-            print 'Updating...'
-            update_records()
+            mylib.print_console('Updating...')
+            update_records("m")
+            update_records("a")
         elif sys.argv[1] == 'find':
             if len(sys.argv) == 2:
-                print "find argument required"
+                mylib.print_console("find argument required")
                 sys.exit()
             try:
                 pos = int(sys.argv[-1])
@@ -162,12 +204,11 @@ if __name__ == "__main__":
             except ValueError:
                 pos = 0
                 msg = ' '.join(sys.argv[2:])
-            print find_record(msg, pos)
+            mylib.print_console(find_record(msg, pos))
         elif sys.argv[1] == 'magia':
             if len(sys.argv) > 2:
-                print loljews(''.join(sys.argv[2:]))
+                mylib.print_console(get_magic_random(''.join(sys.argv[2:])))
             else:
-                print get_random()
-
+                mylib.print_console(get_random())
 
     conn.close()
