@@ -86,7 +86,8 @@ def parse_maria_page(page_source,last_timestamp):
             continue        
         result.append(item)
     if len(result) == 0:
-        raise MyException("benfica")        
+        raise MyException("benfica")
+
     return result
 
 def get_total_pages(page_source):
@@ -95,7 +96,7 @@ def get_total_pages(page_source):
 
 def add_records(items,origem):
     for item in items:
-        conn.execute('insert into sms (data, numero, mensagem, origem) values(?, ?, ?, ?)', [item['ts'], item['num'], item['msg'], origem] )
+        conn.execute('insert into sms (data, numero, mensagem, origem) values(?, ?, ?, ?)', [item['ts'], item['num'], item['msg'], origem])
         conn.commit()
 
 def get_random():
@@ -129,7 +130,6 @@ def get_latest_record_ts(origem):
     if zbr[0] is None:
         return 0
     else:
-        mylib.print_console(zbr)
         data = zbr[0]
         return int(data)
 
@@ -143,9 +143,11 @@ def update_records(revista):
         print "updating maria"
     
     lastts = get_latest_record_ts(revista)
+    print "lastts: %s" % lastts
 
     page = get_page(url)
     total = get_total_pages(page) + 1
+    print "total: %s" % total
     postcrap = get_aspx_vars(page)
 
     try:
@@ -158,7 +160,7 @@ def update_records(revista):
         return
 
     for i in range(1,total):
-        mylib.print_console("parsing page %d" % i)
+        mylib.print_console("parsing page %d - %s" % (i, revista))
         page = get_page(url, i, postcrap)
         postcrap = get_aspx_vars(page)
         try:
@@ -166,7 +168,6 @@ def update_records(revista):
                 items = parse_ana_page(page,lastts)
             elif revista == "m":
                 items = parse_maria_page(page,lastts)
-            mylib.print_console(items)
         except MyException:
             return
         add_records(items,revista)
@@ -192,8 +193,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         if sys.argv[1] == 'cron':
             mylib.print_console('Updating...')
-            update_records("m")
-            update_records("a")
+            update_records('m')
+            update_records('a')
         elif sys.argv[1] == 'find':
             if len(sys.argv) == 2:
                 mylib.print_console("find argument required")
