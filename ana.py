@@ -40,18 +40,18 @@ def get_page(number=0, postvars={}):
 
 def parse_page(page_source):
     result = []
-    for match in re.finditer('(?sm)<div class="smstop"></div>(?P<all>(.|\n|\r\n)*?)<div class="smsbot">', page_source, re.UNICODE):
+    for match in re.finditer('(?sm)<div class="sms">(?P<all>(.|\n|\r\n)*?)<div class="cB">', page_source, re.UNICODE):
         item = {}
         iteminfo = match.group("all")
         matchi = re.search('<p class="smstxt">(?P<mensagem>.*)</p>', iteminfo, re.UNICODE)
         if matchi is None:
             continue
         item['msg'] = matchi.group("mensagem")
-        matchi = re.search('<div class="tm"><img class="icon" src="img/ana/tm.png" width="16" height="16"> Tm.: (?P<num>.*?)</div>', iteminfo)
+        matchi = re.search('<div class="tm rosac"><img src="img/ana/tm.png" width="16" height="16">Tm.: (?P<num>.*?)</div>', iteminfo)
         item['num'] = matchi.group("num")
-        matchi = re.search('<div class="data"><img class="icon" src="img/ana/calend.png" width="16" height="16"> (?P<data>.*?)</div>', iteminfo)
+        matchi = re.search('<div class="data rosac"><img src="img/ana/calend.png" width="16" height="16"> (?P<data>.*?)</div>', iteminfo)
         item['data'] = matchi.group("data")
-        matchi = re.search('<div class="hora"><img class="icon" src="img/ana/relog.png" width="16" height="16"> (?P<hora>.*?)</div>', iteminfo)
+        matchi = re.search('<div class="hora rosac"><img src="img/ana/relog.png" width="16" height="16"> (?P<hora>.*?)</div>', iteminfo)
         item['hora'] = matchi.group("hora")
         result.append(item)
     return result
@@ -63,9 +63,9 @@ def get_total_pages(page_source):
 def add_records(items):
     print 'inserting page...'
     for item in items:
-        print "%s" % msg
         dt = datetime.datetime.strptime(item['data'] + ' ' + item['hora'], "%d.%m.%Y %Hh %Mm")
         msg = item['msg'].decode('utf-8')
+        print "%s" % msg
         conn.execute('insert into ana (data, numero, mensagem) values(?, ?, ?)', (dt, item['num'].replace(' ',''), msg) )
         conn.commit()
     print 'done'
