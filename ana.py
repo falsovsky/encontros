@@ -3,6 +3,8 @@
 
 import urllib2, urllib, re, sys, sqlite3, datetime, hashlib
 
+class MyException(Exception): pass
+
 url = "http://amor.revistaana.pt/hp_ana.aspx"
 conn = sqlite3.connect('ana.db')
 conn.row_factory = sqlite3.Row
@@ -11,8 +13,7 @@ CREATE TABLE ana (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   data TEXT,
   numero TEXT,
-  mensagem TEXT,
-  UNIQUE(data, numero)
+  mensagem TEXT
 );
 """
 
@@ -38,7 +39,7 @@ def get_page(number=0, postvars={}):
     page_source = response.read()
     return page_source
 
-def parse_page(page_source):
+def parse_page(page_source,lastts):
     result = []
     for match in re.finditer('(?sm)<div class="sms">(?P<all>(.|\n|\r\n)*?)<div class="cB">', page_source, re.UNICODE):
         item = {}
@@ -46,14 +47,20 @@ def parse_page(page_source):
         matchi = re.search('<p class="smstxt">(?P<mensagem>.*)</p>', iteminfo, re.UNICODE)
         if matchi is None:
             continue
-        item['msg'] = matchi.group("mensagem")
+        msg = matchi.group("mensagem")
+        item['msg'] = msg.decode('utf-8')
         matchi = re.search('<div class="tm rosac"><img src="img/ana/tm.png" width="16" height="16">Tm.: (?P<num>.*?)</div>', iteminfo)
-        item['num'] = matchi.group("num")
+        item['num'] = matchi.group("num").replace(' ','')
         matchi = re.search('<div class="data rosac"><img src="img/ana/calend.png" width="16" height="16"> (?P<data>.*?)</div>', iteminfo)
         item['data'] = matchi.group("data")
         matchi = re.search('<div class="hora rosac"><img src="img/ana/relog.png" width="16" height="16"> (?P<hora>.*?)</div>', iteminfo)
         item['hora'] = matchi.group("hora")
+        item['ts'] = datetime.datetime.strptime(item['data'] + ' ' + item['hora'], "%d.%m.%Y %Hh %Mm").strftime("%s")
+        if int(item['ts']) < int(lastts):
+            continue
         result.append(item)
+    if len(result) == 0:
+        raise MyException("benfica")
     return result
 
 def get_total_pages(page_source):
@@ -61,14 +68,9 @@ def get_total_pages(page_source):
     return int(match.group(1))
 
 def add_records(items):
-    print 'inserting page...'
     for item in items:
-        dt = datetime.datetime.strptime(item['data'] + ' ' + item['hora'], "%d.%m.%Y %Hh %Mm")
-        msg = item['msg'].decode('utf-8')
-        print "%s" % msg
-        conn.execute('insert into ana (data, numero, mensagem) values(?, ?, ?)', (dt, item['num'].replace(' ',''), msg) )
+        conn.execute('insert into ana (data, numero, mensagem) values(?, ?, ?)', (item['ts'], item['num'], item['msg']) )
         conn.commit()
-    print 'done'
 
 def get_random():
     c = conn.execute('select id, data, numero, mensagem from ana ORDER BY RANDOM() LIMIT 1;')
@@ -94,23 +96,39 @@ def find_record(find, position = 0):
     msg = "%s - %s, %s" % (rows[3], rows[2], rows[1])
     return msg
 
-def update_records():
-     page = get_page()
-     total = get_total_pages(page)
-     postcrap = get_gay_vars(page)
-     try:
-         add_records(parse_page(page))
-     except sqlite3.IntegrityError:
-         return
+def get_latest_record_ts():
+    sql = 'select max(data) from ana'
+    c = conn.execute(sql)
+    zbr = c.fetchone()
+    if zbr[0] is None:
+        return 0
+    else:
+        print zbr
+        data = zbr[0]
+        return int(data)
 
-     for i in range(1,total):
+def update_records():
+    lastts = get_latest_record_ts()
+
+    page = get_page()
+    total = get_total_pages(page) + 1
+    postcrap = get_gay_vars(page)
+
+    try:
+        add_records(parse_page(page,lastts))
+    except MyException:
+        return
+
+    for i in range(1,total):
+        print "parsing page %d" % i
         page = get_page(i, postcrap)
         postcrap = get_gay_vars(page)
-        items = parse_page(page)
         try:
-            add_records(items)
-        except sqlite3.IntegrityError:
+            items = parse_page(page,lastts)
+            print items
+        except MyException:
             return
+        add_records(items)
 
 def loljews(s):
     sql = 'select count(1) from ana'
