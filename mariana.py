@@ -58,7 +58,7 @@ def parse_ana_page(page_source,last_timestamp):
         item['hora'] = matchi.group("hora")
         ts = datetime.datetime.strptime(item['data'] + ' ' + item['hora'], "%d.%m.%Y %Hh %Mm")
         item['ts'] = str(time.mktime(ts.timetuple()))[:-2]
-        if int(item['ts']) < int(last_timestamp):
+        if int(item['ts']) <= int(last_timestamp):
             continue
         result.append(item)
     if len(result) == 0:
@@ -76,14 +76,14 @@ def parse_maria_page(page_source,last_timestamp):
         msg = matchi.group("mensagem")
         item['msg'] = msg.decode('utf-8')
         matchi = re.search('<div class="tm"><img class="icon" src="img/maria/tm.png" width="16" height="16"> Tm.: (?P<num>.*?)</div>', iteminfo)
-        item['num'] = matchi.group("num")
+        item['num'] = matchi.group("num").replace(' ','')
         matchi = re.search('<div class="data"><img class="icon" src="img/maria/calend.png" width="16" height="16"> (?P<data>.*?)</div>', iteminfo)
         item['data'] = matchi.group("data")
         matchi = re.search('<div class="hora"><img class="icon" src="img/maria/relog.png" width="16" height="16"> (?P<hora>.*?)</div>', iteminfo)
         item['hora'] = matchi.group("hora")
         ts = datetime.datetime.strptime(item['data'] + ' ' + item['hora'], "%d.%m.%Y %Hh %Mm")
         item['ts'] = str(time.mktime(ts.timetuple()))[:-2]
-        if int(item['ts']) < int(last_timestamp):
+        if int(item['ts']) <= int(last_timestamp):
             continue        
         result.append(item)
     if len(result) == 0:
@@ -182,9 +182,9 @@ def get_magic_random(s):
     n = int(h, 16)
     myid = n % total
 
-    c = conn.execute('select id, data, numero, mensagem from sms where id = ?;', [myid])
+    c = conn.execute('select id, data, numero, mensagem, origem from sms where id = ?;', [myid])
     rows = c.fetchall()[0]
-    msg = "%s - %s, %s" % (rows[3], rows[2], rows[1])
+    msg = "%s - %s, %si [%s]" % (rows[3], rows[2], rows[1], rows[4])
     return msg
 
 
@@ -208,9 +208,10 @@ if __name__ == "__main__":
                 msg = ' '.join(sys.argv[2:])
             mylib.print_console(find_record(msg, pos))
         elif sys.argv[1] == 'magia':
-            if len(sys.argv) > 2:
-                mylib.print_console(get_magic_random(''.join(sys.argv[2:])))
-            else:
-                mylib.print_console(get_random())
+            # desactivado por causa de ID que saltam
+            #if len(sys.argv) > 2:
+            #    mylib.print_console(get_magic_random(''.join(sys.argv[2:])))
+            #else:
+            mylib.print_console(get_random())
 
     conn.close()
