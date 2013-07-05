@@ -45,11 +45,11 @@ def parse_ana_page(page_source,last_timestamp):
     for match in re.finditer('(?sm)<div class="sms">(?P<all>(.|\n|\r\n)*?)<div class="cB">', page_source, re.UNICODE):
         item = {}
         iteminfo = match.group("all")
-        matchi = re.search('<p class="smstxt">(?P<mensagem>.*)</p>', iteminfo, re.UNICODE)
+        matchi = re.search('<p class="smstxt">(?P<mensagem>(.|\n|\r\n)*?)</p>', iteminfo, re.UNICODE)
         if matchi is None:
             continue
         msg = matchi.group("mensagem")
-        item['msg'] = msg.decode('utf-8')
+        item['msg'] = msg.replace('\n', ' ').decode('utf-8')
         matchi = re.search('<div class="tm rosac"><img src="img/ana/tm.png" width="16" height="16">Tm.: (?P<num>.*?)</div>', iteminfo)
         item['num'] = matchi.group("num").replace(' ','')
         matchi = re.search('<div class="data rosac"><img src="img/ana/calend.png" width="16" height="16"> (?P<data>.*?)</div>', iteminfo)
@@ -70,11 +70,11 @@ def parse_maria_page(page_source,last_timestamp):
     for match in re.finditer('(?sm)<div class="smstop"></div>(?P<all>(.|\n|\r\n)*?)<div class="smsbot">', page_source, re.UNICODE):
         item = {}
         iteminfo = match.group("all")
-        matchi = re.search('<p class="smstxt">(?P<mensagem>.*)</p>', iteminfo, re.UNICODE)
+        matchi = re.search('<p class="smstxt">(?P<mensagem>(.|\n|\r\n)*?)</p>', iteminfo, re.UNICODE)
         if matchi is None:
             continue
         msg = matchi.group("mensagem")
-        item['msg'] = msg.decode('utf-8')
+        item['msg'] = msg.replace('\n', ' ').decode('utf-8')
         matchi = re.search('<div class="tm"><img class="icon" src="img/maria/tm.png" width="16" height="16"> Tm.: (?P<num>.*?)</div>', iteminfo)
         item['num'] = matchi.group("num").replace(' ','')
         matchi = re.search('<div class="data"><img class="icon" src="img/maria/calend.png" width="16" height="16"> (?P<data>.*?)</div>', iteminfo)
@@ -101,7 +101,7 @@ def add_records(items,origem):
         conn.commit()
 
 def get_random():
-    c = conn.execute('select id, data, numero, mensagem, origem from sms ORDER BY RANDOM() LIMIT 1;')
+    c = conn.execute('select id, datetime(data, "unixepoch") as data, numero, mensagem, origem from sms ORDER BY RANDOM() LIMIT 1;')
     rows = c.fetchall()[0]
     msg = "%s - %s, %s [%s]" % (rows[3], rows[2], rows[1], rows[4])
     return msg
@@ -117,7 +117,7 @@ def find_record(find, position = 0):
     if total > 1 and position == 0:
         mylib.print_console("%d found '.fm %s %d' for the next one" % (total, find, position + 1))
 
-    sql = 'select id, data, numero, mensagem, origem from sms WHERE mensagem like ? ORDER BY data LIMIT ?,1'
+    sql = 'select id, datetime(data, "unixepoch") as data, numero, mensagem, origem from sms WHERE mensagem like ? ORDER BY data DESC LIMIT ?,1'
     args = ['%'+find+'%', position]
     c = conn.execute(sql, args)
     rows = c.fetchall()[0]
@@ -148,7 +148,7 @@ def update_records(revista):
 
     page = get_page(url)
     total = get_total_pages(page) + 1
-    print "total: %s" % total
+    print "total pages: %s" % total
     postcrap = get_aspx_vars(page)
 
     try:
@@ -156,6 +156,7 @@ def update_records(revista):
             items = parse_ana_page(page,lastts)
         elif revista == "m":
             items = parse_maria_page(page,lastts)
+        print "got %d items from the first page" % len(items)
         add_records(items,revista)
     except MyException:
         return
@@ -169,6 +170,7 @@ def update_records(revista):
                 items = parse_ana_page(page,lastts)
             elif revista == "m":
                 items = parse_maria_page(page,lastts)
+            print "got %d items from page %d" % (len(items), i)
         except MyException:
             return
         add_records(items,revista)
@@ -182,7 +184,7 @@ def get_magic_random(s):
     n = int(h, 16)
     myid = n % total
 
-    c = conn.execute('select id, data, numero, mensagem, origem from sms where id = ?;', [myid])
+    c = conn.execute('select id, datetime(data, "unixepoch") as data, numero, mensagem, origem from sms where id = ?;', [myid])
     rows = c.fetchall()[0]
     msg = "%s - %s, %si [%s]" % (rows[3], rows[2], rows[1], rows[4])
     return msg
@@ -201,17 +203,21 @@ if __name__ == "__main__":
                 mylib.print_console("find argument required")
                 sys.exit()
             try:
-                pos = int(sys.argv[-1])
-                msg = ' '.join(sys.argv[2:][:-1])
+                if (len(sys.argv) > 3):
+                    pos = int(sys.argv[-1])
+                    msg = ' '.join(sys.argv[2:][:-1])
+                else:
+                    msg = sys.argv[2]
+                    pos = 0
             except ValueError:
                 pos = 0
                 msg = ' '.join(sys.argv[2:])
+            print "msg: '%s' pos: '%d'" % (msg , pos)
             mylib.print_console(find_record(msg, pos))
         elif sys.argv[1] == 'magia':
-            # desactivado por causa de ID que saltam
-            #if len(sys.argv) > 2:
-            #    mylib.print_console(get_magic_random(''.join(sys.argv[2:])))
-            #else:
-            mylib.print_console(get_random())
+            if len(sys.argv) > 2:
+                mylib.print_console(get_magic_random(''.join(sys.argv[2:])))
+            else:
+                mylib.print_console(get_random())
 
     conn.close()
