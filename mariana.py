@@ -212,7 +212,7 @@ if __name__ == "__main__":
             except ValueError:
                 pos = 0
                 msg = ' '.join(sys.argv[2:])
-            print "msg: '%s' pos: '%d'" % (msg , pos)
+            #print "msg: '%s' pos: '%d'" % (msg , pos)
             mylib.print_console(find_record(msg, pos))
         elif sys.argv[1] == 'magia':
             if len(sys.argv) > 2:
