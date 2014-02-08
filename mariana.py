@@ -107,19 +107,40 @@ def get_random():
     msg = "%s - %s, %s [%s]" % (rows[3], rows[2], rows[1], rows[4])
     return msg
 
-def find_record(find, position = 0):
-    sql = 'select count(1) from sms where mensagem like ?'
-    args = ['%'+find+'%']
+def find_record(find, position = 1):
+    if position <= 0:
+      position = 1
+    sql = 'select count(1) from sms where mensagem like ? or numero = ?'
+    args = ['%'+find+'%', find]
     c = conn.execute(sql, args)
     total = c.fetchone()[0]
-    if total == 0 or int(position) > int(total-1):
+    if total == 0 or int(position) > int(total):
         mylib.print_console("Not found")
         sys.exit()
-    if total > 1 and position == 0:
-        mylib.print_console("%d found '.fm %s %d' for the next one" % (total, find, position + 1))
+    if total > 1 and position < total:
+        mylib.print_console("%d found '.fm %s %d' for the next one" % (total, find, position+1))
 
-    sql = 'select id, datetime(data, "unixepoch") as data, numero, mensagem, origem from sms WHERE mensagem like ? ORDER BY data DESC LIMIT ?,1'
-    args = ['%'+find+'%', position]
+    sql = 'select id, datetime(data, "unixepoch") as data, numero, mensagem, origem from sms WHERE mensagem like ? OR numero = ? ORDER BY data DESC LIMIT ?,1'
+    args = ['%'+find+'%', find, position-1]
+    c = conn.execute(sql, args)
+    rows = c.fetchall()[0]
+    msg = "%s - %s, %s [%s]" % (rows[3], rows[2], rows[1], rows[4])
+    return msg
+
+def list_record(position = 1):
+    if position <= 0:
+      position = 1
+    sql = 'select count(1) from sms'
+    c = conn.execute(sql)
+    total = c.fetchone()[0]
+    if total == 0 or int(position) > int(total):
+        mylib.print_console("Not found")
+        sys.exit()
+    if total > 1 and position < total:
+        mylib.print_console("%d found '.fl %d' for the next one" % (total, position+1))
+
+    sql = 'select id, datetime(data, "unixepoch") as data, numero, mensagem, origem from sms ORDER BY data DESC LIMIT ?,1'
+    args = [position-1]
     c = conn.execute(sql, args)
     rows = c.fetchall()[0]
     msg = "%s - %s, %s [%s]" % (rows[3], rows[2], rows[1], rows[4])
@@ -201,7 +222,7 @@ if __name__ == "__main__":
             update_records('a')
         elif sys.argv[1] == 'find':
             if len(sys.argv) == 2:
-                mylib.print_console("find argument required")
+                mylib.print_console(".fm: find argument required")
                 sys.exit()
             try:
                 if (len(sys.argv) > 3):
@@ -220,5 +241,15 @@ if __name__ == "__main__":
                 mylib.print_console(get_magic_random(''.join(sys.argv[2:])))
             else:
                 mylib.print_console(get_random())
+        elif sys.argv[1] == 'lista':
+            if len(sys.argv) > 2:
+                try:
+                    pos = int(sys.argv[2])
+                except ValueError:
+                    pos = 0
+                mylib.print_console(list_record(pos))
+            else:
+                mylib.print_console(list_record())
+
 
     conn.close()
