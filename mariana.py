@@ -6,7 +6,7 @@ import mylib
 
 class MyException(Exception): pass
 
-conn = sqlite3.connect('/home/irc/encontros/mariana.db')
+conn = sqlite3.connect('mariana.db')
 conn.text_factory = str
 conn.row_factory = sqlite3.Row
 """
