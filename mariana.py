@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import urllib2, urllib, re, sys, sqlite3, datetime, hashlib, time
+import urllib2, urllib, re, sys, sqlite3, datetime, hashlib, time, os
 import mylib
 
 class MyException(Exception): pass
 
-conn = sqlite3.connect('mariana.db')
+scriptpath = os.path.dirname(os.path.realpath(__file__))
+conn = sqlite3.connect(scriptpath + '/mariana.db')
 conn.text_factory = str
 conn.row_factory = sqlite3.Row
 """
