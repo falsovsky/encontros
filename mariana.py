@@ -219,7 +219,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         if sys.argv[1] == 'cron':
             mylib.print_console('Updating...')
-            update_records('m')
+            #update_records('m')
             update_records('a')
         elif sys.argv[1] == 'find':
             if len(sys.argv) == 2:
