@@ -39,7 +39,7 @@ def find_message(text=None, number=None, position=1):
         total = json['total']
         if total > 1 and position < total:
             mylib.print_console("%d found '.fm %s %d' for the next one" % \
-                (total, text, json['next']))
+                (total, text or number, json['next']))
 
         record = json['message']
         out = format_message(record)
