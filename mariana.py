@@ -8,6 +8,8 @@ import re
 import requests
 import mylib
 
+TIMEOUT = 0.5
+
 def format_message(record):
     """Returns a formatted string ready for output."""
     return "%s - %s, %s [%s]" % \
@@ -15,7 +17,7 @@ def format_message(record):
 
 def random_message():
     """Returns a random message."""
-    request = requests.get('https://maria.deadbsd.org/api/random')
+    request = requests.get('https://maria.deadbsd.org/api/random', timeout=TIMEOUT)
     json = request.json()
 
     message = json['message']
@@ -30,7 +32,7 @@ def find_message(text=None, number=None, position=1):
     if number:
         params['number'] = number
 
-    request = requests.get('https://maria.deadbsd.org/api/find', params)
+    request = requests.get('https://maria.deadbsd.org/api/find', params, timeout=TIMEOUT)
     json = request.json()
 
     if 'error' in json:
@@ -50,7 +52,7 @@ def latest_message(position=1):
     out = ""
     params = {'position': int(position)}
 
-    request = requests.get('https://maria.deadbsd.org/api/latest', params)
+    request = requests.get('https://maria.deadbsd.org/api/latest', params, timeout=TIMEOUT)
     json = request.json()
 
     if 'error' in json:
