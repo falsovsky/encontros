@@ -8,7 +8,7 @@ import re
 import requests
 import mylib
 
-TIMEOUT = 0.5
+TIMEOUT = 1.5
 
 def format_message(record):
     """Returns a formatted string ready for output."""
