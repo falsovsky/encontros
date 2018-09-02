@@ -12,8 +12,8 @@ TIMEOUT = 1.5
 
 def format_message(record):
     """Returns a formatted string ready for output."""
-    return "%s - %s, %s [%s]" % \
-        (record['text'], record['number'], record['datetime'], record['magazine'][:1].lower())
+    return "%s - #%s, %s [%s]" % \
+        (record['text'], record['user'], record['datetime'], record['magazine'][:1].lower())
 
 def random_message():
     """Returns a random message."""
@@ -23,14 +23,14 @@ def random_message():
     message = json['message']
     return format_message(message)
 
-def find_message(text=None, number=None, position=1):
-    """Finds message based on text or number."""
+def find_message(text=None, user=None, position=1):
+    """Finds message based on text or userId."""
     out = ""
     params = {'position': int(position)}
     if text:
         params['text'] = text
-    if number:
-        params['number'] = number
+    if user:
+        params['user'] = user
 
     request = requests.get('https://maria.deadbsd.org/api/find', params, timeout=TIMEOUT)
     json = request.json()
@@ -41,7 +41,7 @@ def find_message(text=None, number=None, position=1):
         total = json['total']
         if total > 1 and position < total:
             mylib.print_console("%d found '.fm %s %d' for the next one" % \
-                (total, text or number, json['next']))
+                (total, text or user, json['next']))
 
         record = json['message']
         out = format_message(record)
@@ -84,9 +84,10 @@ if __name__ == "__main__":
             if MATCH.group('start'):
                 START = int(MATCH.group('start').strip())
 
-            if KEY.isdigit() and KEY[0] == "9" and len(KEY) == 9:
-                mylib.print_console(find_message(None, KEY, START))
-            else:
+            try:
+                userId = int(KEY)
+                mylib.print_console(find_message(None, userId, START))
+            except ValueError:
                 mylib.print_console(find_message(KEY, None, START))
         elif COMMAND == "lista":
             if ARGS.isdigit():
